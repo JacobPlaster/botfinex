@@ -204,6 +204,7 @@ function getAllOpenOrders() {
         });
 }
 
+
 function openOrders(pair) {
     return new Promise((resolve, reject) => {
         sb.orderbook(pair, { user: username }, (err, res) => {
@@ -212,6 +213,102 @@ function openOrders(pair) {
         })
     })
 }
+
+/*
+{
+  "asks": [
+    {
+      "id": 1,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100200000000",
+      "qty": "10000000000",
+      "type": 0
+    },
+    {
+      "id": 2,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100100000000",
+      "qty": "10000000000",
+      "type": 0
+    },
+    {
+      "id": 3,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100100000000",
+      "qty": "10000000000",
+      "type": 0
+    },
+    {
+      "id": 4,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100100000000",
+      "qty": "10000000000",
+      "type": 0
+    },
+    {
+      "id": 5,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100100000000",
+      "qty": "10000000000",
+      "type": 0
+    },
+    {
+      "id": 6,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100100000000",
+      "qty": "10000000000",
+      "type": 0
+    },
+    {
+      "id": 7,
+      "account": "testuser1555",
+      "clId": 1,
+      "price": "74100100000000",
+      "qty": "10000000000",
+      "type": 0
+    }
+  ],
+  "bids": [
+    {
+      "id": "18446744073709551613",
+      "account": "testuser1122",
+      "clId": 125,
+      "price": 1000000000,
+      "qty": 1000000000,
+      "type": 1
+    }
+  ]
+}
+*/
+
+app.get('/api/v1/currentPrice/:pair', (req, res) => {
+    console.log('GET Getting Current Price');
+    const pair = req.params.pair;
+
+    new Promise((resolve, reject) => {
+        sb.orderbook(pair, {}, (err, reponse) => {
+            if (err) return reject(err);  
+            resolve(reponse);
+        })
+    })
+    .then((data) => {
+        const asks = data.asks;
+        let lowestAsk = null;
+        asks.forEach((ask) => {
+            if (!lowestAsk || lowestAsk > ask.price) {
+                lowestAsk = ask.price;
+            }
+        });
+        return lowestAsk || 0;
+    })
+    .then((price) => res.json({ price }));
+});
 
 
 app.listen(PORT, () => console.log(`Eosfinex interface running on ${PORT}`))

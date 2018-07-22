@@ -49,3 +49,9 @@ def cancelOrder(orderId):
     r = requests.post(url, json=payload)
     # ret = json.loads(r)
     return r
+
+def getCurrentPrice(pair):
+    url = "http://localhost:3000/api/v1/currentPrice/{}".format(pair)
+    r = urllib.request.urlopen(url).read()
+    ret = json.loads(r)
+    return ret['price']

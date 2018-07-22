@@ -87,7 +87,7 @@ def processMessage(message):
         "username": message['message']['chat']['username'],
         "chatid": message['message']['chat']['id']
     }
-    text = message['message']['text'].lower()
+    text = message['message']['text'].lower().replace("'", "")
     logging.info('Processing new message id={} from user={}'.format(message.get('update_id', 0), user['username']))
     # get syntax of text
     syntax = NaturalLanguage.parseSyntax(text)
@@ -354,6 +354,46 @@ def processWhatAction(user, actionSyntax, root):
                     "Your full account balance is: %0A{}.".format(balanceString)
                 )
                 return True
+    priceCalls = ['price', 'cost']
+    for action in actionSyntax:
+        if (action[0] in priceCalls):
+            fromTargetTicker = None
+            for pair in actionSyntax:
+                if pair[1] == "NOUN":
+                    fromTargetTicker = getTickerByName(pair[0])
+                    if (fromTargetTicker != None):
+                        break
+            # get current price
+            if not fromTargetTicker:
+                return False
+            shortSyntax = []
+            for index, pair in enumerate(actionSyntax):
+                if pair[1] == 'ADP':
+                    shortSyntax = actionSyntax[index:]
+            toTargetTicker = None
+            print ('TESSSSTT')
+            print (shortSyntax)
+            for pair in shortSyntax:
+                if pair[1] == "NOUN":
+                    toTargetTicker = getTickerByName(pair[0])
+                    if (toTargetTicker != None):
+                        break
+            if toTargetTicker:
+                price = EosInterface.getCurrentPrice(fromTargetTicker + toTargetTicker)
+                sendMessage(
+                    user['chatid'], 
+                    "The current price of {} is {} {}.".format(fromTargetTicker, price, toTargetTicker)
+                )
+                return True
+            else:
+                price = EosInterface.getCurrentPrice(fromTargetTicker + 'USD')
+                sendMessage(
+                    user['chatid'], 
+                    "The current price of {} is {} USD.".format(fromTargetTicker, price)
+                )
+                return True
+
+
 
 def processCancelAction(user, actionSyntax, root):
     if root[0] not in CANCEL_ACTION:
@@ -366,7 +406,6 @@ def processCancelAction(user, actionSyntax, root):
             orderId = None
             for a in actionSyntax:
                 if a[2] == "NUM":
-                    print ("ORDER ID " + str(int(a[0])))
                     orderId = int(a[0])
             if not orderId:
                 sendMessage(
