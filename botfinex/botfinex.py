@@ -32,7 +32,7 @@ BUY_ORDER = ['buy', 'purchase', 'order', 'get']
 SELL_ORDER = ['convert', 'sell']
 SET_ACTION = ['make', 'set', 'create']
 ALERT_ACTION = ['alert', 'remind', 'tell', 'message']
-WHAT_ACTION = ['what', 'tell', 'display', 'whats', 'show', 'be', 'are', 'how', 'is']
+WHAT_ACTION = ['what', 'tell', 'display', 'whats', 'show', 'be', 'are', 'how', 'is', 'have']
 CANCEL_ACTION = ['cancel', 'remove', 'delete', 'dispose', 'close']
 
 nextUpdateId = None
@@ -49,7 +49,7 @@ def sendMessage(chatId, text):
 
 def getRootStatement(syntax):
     for index, item in enumerate(syntax):
-        if item[2] == "ROOT" or item[0] == "how":
+        if item[2] == "ROOT" or item[0] == "how" or item[0] == "close":
             return syntax[index:]
             break
 
@@ -115,7 +115,7 @@ def processAction(user, actionSyntax):
     # Find route and decide action to take
     rootItem = None
     for item in syntax:
-        if (item[2] == 'ROOT' or item[0] == "how"):
+        if (item[2] == 'ROOT' or item[0] == "how" or item[0] == "close"):
             rootItem = item
             break
     print (rootItem)
@@ -183,7 +183,7 @@ def processBuyAction(user, actionSyntax, root):
             valueAmount = getNumberByWord(pair[0])
             break
 
-    if toTargetTicker and valueAmount:
+    if toTargetTicker:
         if valueAmount:
             EosInterface.createBuyOrder(targetTicker, toTargetTicker, amount, valueAmount)
             sendMessage(
@@ -251,7 +251,7 @@ def processSellAction(user, actionSyntax, root):
             valueAmount = getNumberByWord(pair[0])
             break
 
-    if toTargetTicker and valueAmount:
+    if toTargetTicker:
         if valueAmount:
             EosInterface.createSellOrder(targetTicker, toTargetTicker, amount, valueAmount)
             sendMessage(
@@ -260,13 +260,13 @@ def processSellAction(user, actionSyntax, root):
             )
             return True
         else:
-            EosInterface.createBuyOrder(targetTicker, toTargetTicker, amount, 0)
+            EosInterface.createSellOrder(targetTicker, toTargetTicker, amount, 0)
             sendMessage(
                 user['chatid'], 
                 "Sure {}, I've opend an order to sell {} x {}/{} at market price".format(user['username'], amount, targetTicker, toTargetTicker)
             )
             return True
-    EosInterface.createBuyOrder(targetTicker, 'USD', 999999999999, 0)
+    EosInterface.createSellOrder(targetTicker, 'USD', 999999999999, 0)
     sendMessage(
         user['chatid'], 
         "Sure {}, I've opend an order to sell all {}/{} at market price".format(user['username'], targetTicker, 'USD')
@@ -306,20 +306,27 @@ def processWhatAction(user, actionSyntax, root):
             orderCount = 0
             for key in orders.keys():
                 ordersString += '%0A<b>' + key + '</b>%0A'
-                for ask in orders[key].get('ask', []):
-                    ordersString += '<b>' + ask['id'][:3] + '</b>'
+                print (orders[key])
+                for ask in orders[key].get('asks', []):
+                    id = str(bid['id'])
+                    if (len(id) > 5):
+                        id = id[-3:]
+                    ordersString += '<b>' + id + '</b>'
                     ordersString += ". Quantity {} at price {}".format(ask['qty'], ask['price'])
                     ordersString += '%0A'
                     orderCount += 1
                 for bid in orders[key].get('bids', []):
-                    ordersString += '<b>' + bid['id'][:3] + '</b>'
+                    id = str(bid['id'])
+                    if (len(id) > 5):
+                        id = id[-3:]
+                    ordersString += '<b>' +id + '</b>'
                     ordersString += ". Quantity {} at price {}".format(bid['qty'], bid['price'])
                     ordersString += '%0A'
                     orderCount +=1
             plural = "order" if orderCount == 1 else "orders"
             sendMessage(
                 user['chatid'], 
-                "You have {} {} open: %0A{}".format(orderCount, plural, ordersString)
+                "You have {} {} open. %0A{}".format(orderCount, plural, ordersString)
             )
             return True
     balanceCalls = ['balance', 'wallets', 'funds', 'balances', 'money', 'much', 'many', 'own']
@@ -354,10 +361,26 @@ def processCancelAction(user, actionSyntax, root):
     orderCalls = ['order', 'limit', 'trade']
     for action in actionSyntax:
         if (action[0] in orderCalls):
-            sendMessage(
+            print ("CANCELLING ORDER")
+            # find number to cancel
+            orderId = None
+            for a in actionSyntax:
+                if a[2] == "NUM":
+                    print ("ORDER ID " + str(int(a[0])))
+                    orderId = int(a[0])
+            if not orderId:
+                sendMessage(
                     user['chatid'], 
-                    "Cancelling trade..."
+                    "Sorry, I was unable to find that order."
                 )
+                return True
+            else:
+                EosInterface.cancelOrder(orderId)
+                sendMessage(
+                        user['chatid'], 
+                        "Great, I've now cancelled order {}".format(orderId)
+                    )
+                return True
 
 
 ## Poll Telegram for incoming messages

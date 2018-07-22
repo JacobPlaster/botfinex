@@ -52,9 +52,11 @@ app.post('/api/v1/orders/order/create', (req, res) => {
     if (CORE_TICKERS.includes(tickerFrom)) {
         amount = req.body.amount;
         pair = `${tickerFrom}${tickerTo}`;
+        console.log('1:' + amount)
     } else if (CORE_TICKERS.includes(tickerTo)) {
-        amount = -req.body.amount;
+        amount = req.body.amount;
         pair = `${tickerTo}${tickerFrom}`;
+        console.log('2:' + amount)
     } else {
         res.status(401).json({ error: 'Inavlid trading pair'});
         return;
@@ -79,35 +81,11 @@ app.post('/api/v1/orders/order/create', (req, res) => {
 
 app.get('/api/v1/orders', (req, res) => {
     console.log('GET Getting orders');
-    pairs = [ 
-        'BTCUSD',
-        'BTCETH',
-        'BTCEUR',
-        'BTCEOS',
-        'ETHUSD',
-        'ETHEUR',
-        'ETHEOS',
-        'EOSUSD',
-        'EOSEUR' 
-    ];
-    Promise.all(pairs.map((pair) => openOrders(pair)))
+    return getAllOpenOrders()
         .then((data) => {
-            orders = {}
-            data.forEach((d, i) => {
-                if (d.asks.length > 0) {
-                    let o = d.asks.filter((order) => order.account === "testuser1111")
-                    if (o.length > 0)
-                        orders[pairs[i]] = { asks: o };
-                }
-                if (d.bids.length > 0) {
-                    let o = d.bids.filter((order) => order.account === "testuser1111")
-                    if (o.length > 0)
-                        orders[pairs[i]] = {bids: o };
-                }
-            });
-            return orders;
+            console.log(data);
+            return res.json(data)
         })
-        .then((data) => res.json(data))
         .catch((err) => console.log(err))
 });
 
@@ -138,6 +116,93 @@ app.get('/api/v1/balance', (req, res) => {
     })
     .then((data) => res.json(data));
 });
+
+app.post('/api/v1/cancel', (req, res) => {
+    const orderId = req.body.orderId;
+    console.log(`Cancelling order ${orderId}`)
+    return getAllOpenOrders()
+        .then((data) => {
+            //  { EOSUSD: { asks: [ [Object] ] } }
+            let keys = Object.keys(data);
+            for (let i = 0; i < keys.length; i++) {
+                let asks = data[keys[i]].asks || [];
+                let bids = data[keys[i]].bids || [];
+                for (let i2 = 0; i2 < asks.length; i2++) {
+                    if (asks[i2].id === orderId) {
+                        return { key: keys[i], orderId, side: 'ask' };
+                    } else {
+                        const idString = asks[i2].id.toString()
+                        const shortId = idString.substring(idString.length - 3);
+                        if (shortId === orderId) {
+                            return { key: keys[i], orderId: asks[i2].id, side: 'ask' };
+                        }
+                    }
+                }
+                for (let i3 = 0; i3 < bids.length; i3++) {
+                    if (bids[i3].id === orderId) {
+                        return { key: keys[i], orderId, side: 'bid' }
+                    } else {
+                        const idString = bids[i3].id.toString()
+                        const shortId = idString.substring(idString.length - 3);
+                        if (shortId === orderId.toString()) {
+                            return { key: keys[i], orderId: bids[i3].id, side: 'bid' };
+                        }
+                    }
+                }
+            }
+        })
+        .then((inOrderId) => {
+            console.log(inOrderId);
+            return new Promise((resolve, reject) => {
+                console.log({
+                    id: inOrderId.orderId,
+                    symbol: inOrderId.key,
+                    side: inOrderId.side
+                });
+                sb.cancel({
+                    id: inOrderId.orderId,
+                    symbol: inOrderId.key,
+                    side: inOrderId.side
+                }, {}, (err, res2) => {
+                    if (err) return reject(err);
+                    return resolve(res2);
+                })
+            })
+        })
+        .then(() => res.json({ status: 'OK' }))
+        .catch((err) => console.log(err));
+});
+
+function getAllOpenOrders() {
+    pairs = [ 
+        'BTCUSD',
+        'BTCETH',
+        'BTCEUR',
+        'BTCEOS',
+        'ETHUSD',
+        'ETHEUR',
+        'ETHEOS',
+        'EOSUSD',
+        'EOSEUR' 
+    ];
+    return Promise.all(pairs.map((pair) => openOrders(pair)))
+        .then((data) => {
+            orders = {}
+            data.forEach((d, i) => {
+                if (d.asks.length > 0) {
+                    let o = d.asks.filter((order) => order.account === "testuser1111")
+                    if (o.length > 0)
+                        orders[pairs[i]] = { asks: o };
+                }
+                if (d.bids.length > 0) {
+                    let o = d.bids.filter((order) => order.account === "testuser1111")
+                    if (o.length > 0)
+                        orders[pairs[i]] = {bids: o };
+                }
+            });
+            return orders;
+        });
+}
 
 function openOrders(pair) {
     return new Promise((resolve, reject) => {
